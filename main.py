@@ -7,7 +7,11 @@ from PIL import Image
 # Initialize MediaPipe components
 mediapipe_draw = mp.solutions.drawing_utils
 mediapipe_hands = mp.solutions.hands
-hand_tips = [4, 8, 12, 16, 20]
+
+# Define finger tip IDs and pip IDs (second knuckle)
+tip_ids = [4, 8, 12, 16, 20]  # finger tips
+pip_ids = [3, 7, 11, 15, 19]  # second knuckles
+mcp_ids = [2, 6, 10, 14, 18]  # third knuckles
 
 def initialize_page():
     st.set_page_config(
@@ -69,6 +73,28 @@ def display_header():
         </div>
     """, unsafe_allow_html=True)
 
+def count_fingers(landmarks, hand_type):
+    fingers = []
+    
+    # Get the hand type (Left or Right)
+    is_right = (hand_type == "Right")
+    
+    # Thumb: Compare x-coordinates relative to hand type
+    if is_right:
+        thumb_open = landmarks[tip_ids[0]][1] > landmarks[pip_ids[0]][1]
+    else:
+        thumb_open = landmarks[tip_ids[0]][1] < landmarks[pip_ids[0]][1]
+    fingers.append(1 if thumb_open else 0)
+    
+    # Four fingers: Compare y-coordinates
+    for id in range(1, 5):
+        if landmarks[tip_ids[id]][2] < landmarks[pip_ids[id]][2]:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+            
+    return sum(fingers)
+
 def main():
     initialize_page()
     display_header()
@@ -88,7 +114,8 @@ def main():
     with mediapipe_hands.Hands(
         min_detection_confidence=0.7,
         max_num_hands=1,
-        min_tracking_confidence=0.7
+        min_tracking_confidence=0.7,
+        model_complexity=1
     ) as hands:
         
         if camera is not None:
@@ -100,49 +127,28 @@ def main():
             results = hands.process(frame)
             frame.flags.writeable = True
             
-            lm_list = []
-            
-            if results.multi_hand_landmarks:
-                for hand_landmark in results.multi_hand_landmarks:
-                    myHands = results.multi_hand_landmarks[0]
-                    for id, lm in enumerate(myHands.landmark):
-                        h, w, c = frame.shape
-                        cx, cy = int(lm.x * w), int(lm.y * h)
-                        lm_list.append([id, cx, cy])
-                    mediapipe_draw.draw_landmarks(
-                        frame,
-                        hand_landmark,
-                        mediapipe_hands.HAND_CONNECTIONS,
-                        mediapipe_draw.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
-                        mediapipe_draw.DrawingSpec(color=(0, 128, 0), thickness=2)
-                    )
-
-            # Count fingers with hand type detection
-            fingers = []
-            if len(lm_list) != 0 and results.multi_handedness:
-                # Get hand type (Left or Right)
+            if results.multi_hand_landmarks and results.multi_handedness:
                 hand_type = results.multi_handedness[0].classification[0].label
+                landmarks = results.multi_hand_landmarks[0]
                 
-                # Thumb detection based on hand type
-                if hand_type == "Right":
-                    if lm_list[hand_tips[0]][1] > lm_list[hand_tips[0]-1][1]:
-                        fingers.append(1)
-                    else:
-                        fingers.append(0)
-                else:  # Left hand
-                    if lm_list[hand_tips[0]][1] < lm_list[hand_tips[0]-1][1]:
-                        fingers.append(1)
-                    else:
-                        fingers.append(0)
-                    
-                # Other fingers (same for both hands)
-                for i in range(1, 5):
-                    if lm_list[hand_tips[i]][2] < lm_list[hand_tips[i]-2][2]:
-                        fingers.append(1)
-                    else:
-                        fingers.append(0)
+                # Convert landmarks to pixel coordinates
+                h, w, c = frame.shape
+                lm_list = []
+                for lm in landmarks.landmark:
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    lm_list.append([len(lm_list), cx, cy])
                 
-                st.session_state.finger_count = fingers.count(1)
+                # Draw hand landmarks
+                mediapipe_draw.draw_landmarks(
+                    frame,
+                    landmarks,
+                    mediapipe_hands.HAND_CONNECTIONS,
+                    mediapipe_draw.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                    mediapipe_draw.DrawingSpec(color=(0, 128, 0), thickness=2)
+                )
+                
+                # Count fingers
+                st.session_state.finger_count = count_fingers(lm_list, hand_type)
                 
                 # Display hand type
                 st.markdown(f"""
