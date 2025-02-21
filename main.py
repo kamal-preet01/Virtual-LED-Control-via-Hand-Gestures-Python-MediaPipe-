@@ -2,7 +2,6 @@ import streamlit as st
 import cv2
 import mediapipe as mp
 import numpy as np
-from streamlit_javascript import st_javascript
 from PIL import Image
 
 # Initialize MediaPipe components
@@ -17,34 +16,58 @@ def initialize_page():
         layout="wide"
     )
     
-    # Custom CSS
+    # Custom CSS for styling
     st.markdown("""
         <style>
         .main {
             background-color: #f8f9fa;
         }
+        .led-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            border-radius: 15px;
+        }
+        .led {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            position: relative;
+            text-align: center;
+        }
+        .led-on {
+            background: radial-gradient(circle at 30% 30%, #ffff00, #ffd700);
+            box-shadow: 0 0 20px #ffd700;
+        }
+        .led-off {
+            background: #444;
+            box-shadow: inset 0 0 10px #000;
+        }
         .stApp {
             max-width: 1200px;
             margin: 0 auto;
         }
-        .css-1d391kg {
-            padding: 2rem 1rem;
-        }
-        .stButton>button {
-            width: 100%;
-        }
         </style>
     """, unsafe_allow_html=True)
 
+def create_led_display(active_leds):
+    led_html = '<div class="led-container">'
+    for i in range(5):
+        led_class = "led-on" if i < active_leds else "led-off"
+        led_html += f'<div class="led {led_class}"></div>'
+    led_html += '</div>'
+    return led_html
+
 def display_header():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.title("🖐️ Gesture-Controlled LED System")
-        st.markdown("""
-            <div style='text-align: center; color: #666;'>
-                Control virtual LEDs with hand gestures in real-time
-            </div>
-        """, unsafe_allow_html=True)
+    st.title("🖐️ Gesture-Controlled LED System")
+    st.markdown("""
+        <div style='text-align: center; color: #666; margin-bottom: 30px;'>
+            Control virtual LEDs with hand gestures in real-time
+        </div>
+    """, unsafe_allow_html=True)
 
 def main():
     initialize_page()
@@ -57,7 +80,7 @@ def main():
         st.markdown("### 📹 Camera Feed")
         camera = st.camera_input("", key="camera_input")
     
-    # Initialize session state for finger count if not exists
+    # Initialize session state for finger count
     if 'finger_count' not in st.session_state:
         st.session_state.finger_count = 0
     
@@ -115,37 +138,42 @@ def main():
             # Display processed frame
             st.image(frame, channels="RGB", use_column_width=True)
     
-    # LED Display in second column
+    # LED Display and Stats in second column
     with col2:
-        st.markdown("### 💡 LED Status")
+        st.markdown("### 💡 LED Control Panel")
         
-        # Use the React component for LED display
-        from streamlit_elements import elements
+        # Display LED visualization
+        st.markdown(create_led_display(st.session_state.finger_count), unsafe_allow_html=True)
         
-        with elements("led_display"):
-            from streamlit_elements import mui
-            LEDDisplay(activeCount=st.session_state.finger_count)
-        
-        # Display stats
+        # Display stats in a nice container
         st.markdown(f"""
             <div style='background-color: white; padding: 20px; border-radius: 10px; margin-top: 20px;'>
                 <h4 style='margin: 0; color: #333;'>System Statistics</h4>
                 <hr style='margin: 10px 0;'>
-                <p>Active LEDs: {st.session_state.finger_count}</p>
-                <p>System Status: Active</p>
-                <p>Response Time: <20ms</p>
+                <p><strong>Active LEDs:</strong> {st.session_state.finger_count}/5</p>
+                <p><strong>System Status:</strong> <span style='color: green;'>Active</span></p>
+                <p><strong>Response Time:</strong> <20ms</p>
             </div>
         """, unsafe_allow_html=True)
 
     # Instructions
-    st.markdown("### 📝 Instructions")
-    st.markdown("""
-        1. Allow camera access when prompted
-        2. Show your hand to the camera
-        3. Extend or fold your fingers to control the LEDs
-        4. Number of extended fingers determines number of active LEDs
-        5. For best results, ensure good lighting and keep your hand within frame
-    """)
+    st.markdown("### 📝 How to Use")
+    cols = st.columns(3)
+    with cols[0]:
+        st.markdown("""
+            1. Allow camera access
+            2. Show your hand clearly
+        """)
+    with cols[1]:
+        st.markdown("""
+            3. Extend fingers to control LEDs
+            4. Keep hand within frame
+        """)
+    with cols[2]:
+        st.markdown("""
+            5. Ensure good lighting
+            6. Maintain stable position
+        """)
 
 if __name__ == "__main__":
     main()
