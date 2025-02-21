@@ -117,16 +117,25 @@ def main():
                         mediapipe_draw.DrawingSpec(color=(0, 128, 0), thickness=2)
                     )
 
-            # Count fingers
+            # Count fingers with hand type detection
             fingers = []
-            if len(lm_list) != 0:
-                # Thumb
-                if lm_list[hand_tips[0]][1] > lm_list[hand_tips[0]-1][1]:
-                    fingers.append(1)
-                else:
-                    fingers.append(0)
+            if len(lm_list) != 0 and results.multi_handedness:
+                # Get hand type (Left or Right)
+                hand_type = results.multi_handedness[0].classification[0].label
+                
+                # Thumb detection based on hand type
+                if hand_type == "Right":
+                    if lm_list[hand_tips[0]][1] > lm_list[hand_tips[0]-1][1]:
+                        fingers.append(1)
+                    else:
+                        fingers.append(0)
+                else:  # Left hand
+                    if lm_list[hand_tips[0]][1] < lm_list[hand_tips[0]-1][1]:
+                        fingers.append(1)
+                    else:
+                        fingers.append(0)
                     
-                # Other fingers
+                # Other fingers (same for both hands)
                 for i in range(1, 5):
                     if lm_list[hand_tips[i]][2] < lm_list[hand_tips[i]-2][2]:
                         fingers.append(1)
@@ -134,6 +143,13 @@ def main():
                         fingers.append(0)
                 
                 st.session_state.finger_count = fingers.count(1)
+                
+                # Display hand type
+                st.markdown(f"""
+                    <div style='background-color: #e7f3fe; padding: 10px; border-radius: 5px; margin: 10px 0;'>
+                        <strong>Detected Hand:</strong> {hand_type}
+                    </div>
+                """, unsafe_allow_html=True)
             
             # Display processed frame
             st.image(frame, channels="RGB", use_column_width=True)
